@@ -9,7 +9,6 @@ export async function getPool() {
   if (!pool) {
     console.log("📡 Connecting to Azure SQL...");
     
-    // Convert connection string to config object
     const config = {
       server: process.env.DB_SERVER,
       database: process.env.DB_DATABASE,
@@ -17,7 +16,7 @@ export async function getPool() {
       password: process.env.DB_PASSWORD,
       port: parseInt(process.env.DB_PORT) || 1433,
       options: {
-        encrypt: true, // for Azure SQL
+        encrypt: true, // Required for Azure SQL
         trustServerCertificate: false,
         enableArithAbort: true,
         connectTimeout: 30000,
@@ -33,6 +32,11 @@ export async function getPool() {
     try {
       pool = await sql.connect(config);
       console.log("✅ Azure SQL Server connected successfully");
+      
+      // Test the connection
+      const result = await pool.request().query("SELECT DB_NAME() as database_name");
+      console.log(`📚 Connected to database: ${result.recordset[0].database_name}`);
+      
     } catch (err) {
       console.error("❌ DB connection failed:", err.message);
       throw err;
