@@ -34,15 +34,22 @@ export async function listProducts(req, res) {
       images: (() => { try { return JSON.parse(p.images) } catch { return [] } })(),
     }))
 
+    // Return both formats for compatibility
     res.json({
       success: true,
+      products: products,
       data: products,
       total: result.recordset[0]?.total_count || 0,
       page: parseInt(page),
+      count: products.length
     })
   } catch (err) {
-    console.error(err)
-    res.status(500).json({ success: false, message: 'Failed to fetch products' })
+    console.error('Products error:', err)
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch products',
+      error: err.message 
+    })
   }
 }
 
@@ -60,13 +67,32 @@ export async function getProduct(req, res) {
         WHERE p.product_id = @id AND p.is_active = 1
       `)
 
-    if (!productRes.recordset.length)
+    if (!productRes.recordset.length) {
       return res.status(404).json({ success: false, message: 'Product not found' })
+    }
 
     const product = productRes.recordset[0]
     product.images = (() => { try { return JSON.parse(product.images) } catch { return [] } })()
-    res.json({ success: true, data: product })
+    
+    // Get reviews for this product
+    const reviewsRes = await pool.request()
+      .input('product_id', sql.Int, id)
+      .query(`
+        SELECT r.*, u.first_name, u.last_name
+        FROM Reviews r
+        JOIN Users u ON u.user_id = r.user_id
+        WHERE r.product_id = @product_id AND r.is_visible = 1
+        ORDER BY r.created_at DESC
+      `)
+    
+    res.json({ 
+      success: true, 
+      product: product,
+      data: product,
+      reviews: reviewsRes.recordset
+    })
   } catch (err) {
+    console.error('Get product error:', err)
     res.status(500).json({ success: false, message: 'Failed to get product' })
   }
 }
@@ -75,9 +101,15 @@ export async function getCategories(req, res) {
   try {
     const pool = await getPool()
     const result = await pool.request()
-      .query('SELECT * FROM Categories WHERE is_active = 1 ORDER BY display_order')
-    res.json({ success: true, data: result.recordset })
+      .query('SELECT category_id as id, name, description, image_url, is_active, display_order FROM Categories WHERE is_active = 1 ORDER BY display_order')
+    
+    res.json({ 
+      success: true, 
+      categories: result.recordset,
+      data: result.recordset 
+    })
   } catch (err) {
+    console.error('Categories error:', err)
     res.status(500).json({ success: false, message: 'Failed to get categories' })
   }
 }
@@ -88,6 +120,7 @@ export async function addReview(req, res) {
     const { product_id, rating, comment } = req.body
     const user_id = req.user.user_id
 
+    // Check if user purchased the product
     const orderCheck = await pool.request()
       .input('user_id', sql.Int, user_id)
       .input('product_id', sql.Int, product_id)
@@ -101,6 +134,7 @@ export async function addReview(req, res) {
       return res.status(403).json({ success: false, message: 'You can only review products you have purchased' })
     }
 
+    // Check if already reviewed
     const existing = await pool.request()
       .input('user_id', sql.Int, user_id)
       .input('product_id', sql.Int, product_id)
@@ -110,16 +144,18 @@ export async function addReview(req, res) {
       return res.status(409).json({ success: false, message: 'You have already reviewed this product' })
     }
 
+    // Add review
     await pool.request()
       .input('product_id', sql.Int, product_id)
       .input('user_id', sql.Int, user_id)
       .input('rating', sql.TinyInt, rating)
-      .input('comment', sql.NVarChar, comment)
+      .input('comment', sql.NVarChar, comment || '')
       .query(`
-        INSERT INTO Reviews (product_id, user_id, rating, comment, created_at)
-        VALUES (@product_id, @user_id, @rating, @comment, GETDATE())
+        INSERT INTO Reviews (product_id, user_id, rating, comment, created_at, is_visible)
+        VALUES (@product_id, @user_id, @rating, @comment, GETDATE(), 1)
       `)
 
+    // Update product rating
     await pool.request()
       .input('product_id', sql.Int, product_id)
       .query(`
@@ -129,8 +165,9 @@ export async function addReview(req, res) {
         WHERE product_id = @product_id
       `)
 
-    res.json({ success: true, message: 'Review submitted' })
+    res.json({ success: true, message: 'Review submitted successfully' })
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Review failed' })
+    console.error('Review error:', err)
+    res.status(500).json({ success: false, message: 'Failed to submit review' })
   }
 }
