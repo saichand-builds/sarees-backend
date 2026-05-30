@@ -3,6 +3,10 @@ import { getPool, sql } from '../config/database.js'
 export async function listProducts(req, res) {
   try {
     const pool = await getPool()
+    
+    // Force use the correct database
+    await pool.request().query("USE SareesDB");
+    
     const { search = '', category_id = '', page = 1, limit = 12 } = req.query
     const offset = (parseInt(page) - 1) * parseInt(limit)
     let where = 'WHERE p.is_active = 1'
@@ -19,11 +23,12 @@ export async function listProducts(req, res) {
       request.input('category_id', sql.Int, parseInt(category_id))
     }
 
+    // Use fully qualified table names with database and schema
     const result = await request.query(`
       SELECT p.*, c.name as category_name,
              COUNT(*) OVER() AS total_count
-      FROM Products p
-      LEFT JOIN Categories c ON c.category_id = p.category_id
+      FROM [SareesDB].[dbo].[Products] p
+      LEFT JOIN [SareesDB].[dbo].[Categories] c ON c.category_id = p.category_id
       ${where}
       ORDER BY p.created_at DESC
       OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
@@ -61,14 +66,18 @@ export async function listProducts(req, res) {
 export async function getProduct(req, res) {
   try {
     const pool = await getPool()
+    
+    // Force use the correct database
+    await pool.request().query("USE SareesDB");
+    
     const { id } = req.params
 
     const productRes = await pool.request()
       .input('id', sql.Int, id)
       .query(`
         SELECT p.*, c.name as category_name
-        FROM Products p
-        LEFT JOIN Categories c ON c.category_id = p.category_id
+        FROM [SareesDB].[dbo].[Products] p
+        LEFT JOIN [SareesDB].[dbo].[Categories] c ON c.category_id = p.category_id
         WHERE p.product_id = @id AND p.is_active = 1
       `)
 
@@ -91,8 +100,8 @@ export async function getProduct(req, res) {
         .input('product_id', sql.Int, id)
         .query(`
           SELECT r.*, u.first_name, u.last_name
-          FROM Reviews r
-          JOIN Users u ON u.user_id = r.user_id
+          FROM [SareesDB].[dbo].[Reviews] r
+          JOIN [SareesDB].[dbo].[Users] u ON u.user_id = r.user_id
           WHERE r.product_id = @product_id AND r.is_visible = 1
           ORDER BY r.created_at DESC
         `)
@@ -116,8 +125,12 @@ export async function getProduct(req, res) {
 export async function getCategories(req, res) {
   try {
     const pool = await getPool()
+    
+    // Force use the correct database
+    await pool.request().query("USE SareesDB");
+    
     const result = await pool.request()
-      .query('SELECT category_id as id, name, description, image_url, is_active, display_order FROM Categories WHERE is_active = 1 ORDER BY display_order')
+      .query('SELECT category_id as id, name, description, image_url, is_active, display_order FROM [SareesDB].[dbo].[Categories] WHERE is_active = 1 ORDER BY display_order')
     
     res.json({ 
       success: true, 
@@ -133,6 +146,10 @@ export async function getCategories(req, res) {
 export async function addReview(req, res) {
   try {
     const pool = await getPool()
+    
+    // Force use the correct database
+    await pool.request().query("USE SareesDB");
+    
     const { product_id, rating, comment } = req.body
     const user_id = req.user.user_id
 
@@ -141,8 +158,8 @@ export async function addReview(req, res) {
       .input('user_id', sql.Int, user_id)
       .input('product_id', sql.Int, product_id)
       .query(`
-        SELECT 1 FROM OrderItems oi
-        JOIN Orders o ON o.order_id = oi.order_id
+        SELECT 1 FROM [SareesDB].[dbo].[OrderItems] oi
+        JOIN [SareesDB].[dbo].[Orders] o ON o.order_id = oi.order_id
         WHERE o.user_id = @user_id AND oi.product_id = @product_id AND o.order_status = 'delivered'
       `)
 
@@ -154,7 +171,7 @@ export async function addReview(req, res) {
     const existing = await pool.request()
       .input('user_id', sql.Int, user_id)
       .input('product_id', sql.Int, product_id)
-      .query('SELECT 1 FROM Reviews WHERE user_id = @user_id AND product_id = @product_id')
+      .query('SELECT 1 FROM [SareesDB].[dbo].[Reviews] WHERE user_id = @user_id AND product_id = @product_id')
 
     if (existing.recordset.length) {
       return res.status(409).json({ success: false, message: 'You have already reviewed this product' })
@@ -167,7 +184,7 @@ export async function addReview(req, res) {
       .input('rating', sql.TinyInt, rating)
       .input('comment', sql.NVarChar, comment || '')
       .query(`
-        INSERT INTO Reviews (product_id, user_id, rating, comment, created_at, is_visible)
+        INSERT INTO [SareesDB].[dbo].[Reviews] (product_id, user_id, rating, comment, created_at, is_visible)
         VALUES (@product_id, @user_id, @rating, @comment, GETDATE(), 1)
       `)
 
@@ -175,9 +192,9 @@ export async function addReview(req, res) {
     await pool.request()
       .input('product_id', sql.Int, product_id)
       .query(`
-        UPDATE Products SET
-          rating = (SELECT AVG(CAST(rating AS FLOAT)) FROM Reviews WHERE product_id = @product_id),
-          total_reviews = (SELECT COUNT(*) FROM Reviews WHERE product_id = @product_id)
+        UPDATE [SareesDB].[dbo].[Products] SET
+          rating = (SELECT AVG(CAST(rating AS FLOAT)) FROM [SareesDB].[dbo].[Reviews] WHERE product_id = @product_id),
+          total_reviews = (SELECT COUNT(*) FROM [SareesDB].[dbo].[Reviews] WHERE product_id = @product_id)
         WHERE product_id = @product_id
       `)
 
@@ -188,32 +205,81 @@ export async function addReview(req, res) {
   }
 }
 
-// Debug endpoint - Add this temporarily for testing
+// Debug endpoint to test connection
 export async function testConnection(req, res) {
   try {
     const pool = await getPool();
     
-    // Test 1: Get database name
-    const dbResult = await pool.request().query("SELECT DB_NAME() as database_name");
+    const results = {};
     
-    // Test 2: List all tables
-    const tablesResult = await pool.request().query(`
-      SELECT TABLE_NAME 
-      FROM INFORMATION_SCHEMA.TABLES 
-      WHERE TABLE_TYPE = 'BASE TABLE'
-      ORDER BY TABLE_NAME
-    `);
+    // Test 1: Get current database
+    const dbResult = await pool.request().query("SELECT DB_NAME() as current_db");
+    results.currentDatabase = dbResult.recordset[0];
     
-    // Test 3: Try to get products count
-    const productsResult = await pool.request().query("SELECT COUNT(*) as total FROM Products");
+    // Test 2: Try to use SareesDB explicitly
+    try {
+      await pool.request().query("USE SareesDB");
+      const afterUse = await pool.request().query("SELECT DB_NAME() as now_db");
+      results.afterUseDatabase = afterUse.recordset[0];
+    } catch (err) {
+      results.useDatabaseError = err.message;
+    }
     
-    res.json({
-      success: true,
-      database: dbResult.recordset[0],
-      tables: tablesResult.recordset,
-      totalProducts: productsResult.recordset[0].total
-    });
+    // Test 3: List all databases on server
+    try {
+      const dbs = await pool.request().query("SELECT name FROM sys.databases");
+      results.databases = dbs.recordset;
+    } catch (err) {
+      results.databasesError = err.message;
+    }
+    
+    // Test 4: Try different ways to query Products
+    results.tests = {};
+    
+    // Test 4a: Without schema
+    try {
+      const test1 = await pool.request().query("SELECT TOP 1 * FROM Products");
+      results.tests.noSchema = "✅ Works";
+    } catch (err) {
+      results.tests.noSchema = `❌ ${err.message}`;
+    }
+    
+    // Test 4b: With dbo schema
+    try {
+      const test2 = await pool.request().query("SELECT TOP 1 * FROM dbo.Products");
+      results.tests.withDbo = "✅ Works";
+    } catch (err) {
+      results.tests.withDbo = `❌ ${err.message}`;
+    }
+    
+    // Test 4c: With database and schema
+    try {
+      const test3 = await pool.request().query("SELECT TOP 1 * FROM SareesDB.dbo.Products");
+      results.tests.withFullPath = "✅ Works";
+    } catch (err) {
+      results.tests.withFullPath = `❌ ${err.message}`;
+    }
+    
+    // Test 4d: With brackets
+    try {
+      const test4 = await pool.request().query("SELECT TOP 1 * FROM [SareesDB].[dbo].[Products]");
+      results.tests.withBrackets = "✅ Works";
+    } catch (err) {
+      results.tests.withBrackets = `❌ ${err.message}`;
+    }
+    
+    // Test 5: Check environment variables
+    results.environment = {
+      DB_SERVER: process.env.DB_SERVER || "Not set",
+      DB_DATABASE: process.env.DB_DATABASE || "Not set",
+      DB_USER: process.env.DB_USER ? "Set" : "Not set",
+      DB_PORT: process.env.DB_PORT || "Not set"
+    };
+    
+    res.json(results);
+    
   } catch (error) {
+    console.error('Debug error:', error);
     res.status(500).json({
       success: false,
       error: error.message,
