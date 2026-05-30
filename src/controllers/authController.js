@@ -43,8 +43,12 @@ export async function login(req, res) {
     const { email, password } = req.body
     
     const user = await User.findByEmail(email)
-    if (!user || !user.is_active) {
+    if (!user) {
       return res.status(401).json({ success: false, message: 'Invalid email or password' })
+    }
+    
+    if (!user.is_active) {
+      return res.status(401).json({ success: false, message: 'Account is deactivated' })
     }
 
     const valid = await bcrypt.compare(password, user.password_hash)
@@ -81,6 +85,40 @@ export async function updateProfile(req, res) {
     })
     res.json({ success: true, user: safeUser(user), message: 'Profile updated' })
   } catch (err) {
-    res.status(500).json({ success: false, message: 'UPDATE dbo.failed' })
+    res.status(500).json({ success: false, message: 'Update failed' })
+  }
+}
+
+// Debug endpoint - Add this temporarily
+export async function debugLogin(req, res) {
+  try {
+    const { email, password } = req.body;
+    
+    // Check if user exists
+    const user = await User.findByEmail(email);
+    
+    if (!user) {
+      return res.json({ 
+        exists: false, 
+        message: 'User not found',
+        email: email 
+      });
+    }
+    
+    // Compare password
+    const isValid = await bcrypt.compare(password, user.password_hash);
+    
+    res.json({
+      exists: true,
+      email: user.email,
+      role: user.role,
+      is_active: user.is_active,
+      passwordValid: isValid,
+      hashLength: user.password_hash?.length,
+      hashStart: user.password_hash?.substring(0, 20)
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
   }
 }
