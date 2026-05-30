@@ -8,8 +8,8 @@ export async function getWishlist(req, res) {
       .query(`
         SELECT w.wishlist_id, w.product_id, w.added_at,
                p.name, p.price, p.discount_price, p.images
-        FROM Wishlist w
-        JOIN Products p ON p.product_id = w.product_id
+        FROM dbo.Wishlist w
+        JOIN dbo.Products p ON p.product_id = w.product_id
         WHERE w.user_id = @user_id AND p.is_active = 1
       `)
 
@@ -33,13 +33,13 @@ export async function addToWishlist(req, res) {
     const existing = await pool.request()
       .input('user_id', sql.Int, user_id)
       .input('product_id', sql.Int, product_id)
-      .query('SELECT 1 FROM Wishlist WHERE user_id = @user_id AND product_id = @product_id')
+      .query('SELECT 1 FROM dbo.Wishlist WHERE user_id = @user_id AND product_id = @product_id')
 
     if (!existing.recordset.length) {
       await pool.request()
         .input('user_id', sql.Int, user_id)
         .input('product_id', sql.Int, product_id)
-        .query('INSERT INTO Wishlist (user_id, product_id) VALUES (@user_id, @product_id)')
+        .query('INSERT INTO dbo.Wishlist (user_id, product_id) VALUES (@user_id, @product_id)')
     }
 
     res.json({ success: true, message: 'Added to wishlist' })
@@ -57,10 +57,10 @@ export async function removeFromWishlist(req, res) {
     await pool.request()
       .input('user_id', sql.Int, user_id)
       .input('product_id', sql.Int, product_id)
-      .query('DELETE FROM Wishlist WHERE user_id = @user_id AND product_id = @product_id')
+      .query('DELETE FROM dbo.Wishlist WHERE user_id = @user_id AND product_id = @product_id')
 
-    res.json({ success: true, message: 'Removed from wishlist' })
+    res.json({ success: true, message: 'Removed FROM dbo.wishlist' })
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Failed to remove from wishlist' })
+    res.status(500).json({ success: false, message: 'Failed to remove FROM dbo.wishlist' })
   }
 }

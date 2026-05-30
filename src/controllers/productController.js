@@ -22,8 +22,8 @@ export async function listProducts(req, res) {
     const result = await request.query(`
       SELECT p.*, c.name as category_name,
              COUNT(*) OVER() AS total_count
-      FROM Products p
-      LEFT JOIN Categories c ON c.category_id = p.category_id
+      FROM dbo.Products p
+      LEFT JOIN dbo.Categories c ON c.category_id = p.category_id
       ${where}
       ORDER BY p.created_at DESC
       OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
@@ -62,8 +62,8 @@ export async function getProduct(req, res) {
       .input('id', sql.Int, id)
       .query(`
         SELECT p.*, c.name as category_name
-        FROM Products p
-        LEFT JOIN Categories c ON c.category_id = p.category_id
+        FROM dbo.Products p
+        LEFT JOIN dbo.Categories c ON c.category_id = p.category_id
         WHERE p.product_id = @id AND p.is_active = 1
       `)
 
@@ -79,8 +79,8 @@ export async function getProduct(req, res) {
       .input('product_id', sql.Int, id)
       .query(`
         SELECT r.*, u.first_name, u.last_name
-        FROM Reviews r
-        JOIN Users u ON u.user_id = r.user_id
+        FROM dbo.Reviews r
+        JOIN dbo.Users u ON u.user_id = r.user_id
         WHERE r.product_id = @product_id AND r.is_visible = 1
         ORDER BY r.created_at DESC
       `)
@@ -101,7 +101,7 @@ export async function getCategories(req, res) {
   try {
     const pool = await getPool()
     const result = await pool.request()
-      .query('SELECT category_id as id, name, description, image_url, is_active, display_order FROM Categories WHERE is_active = 1 ORDER BY display_order')
+      .query('SELECT category_id as id, name, description, image_url, is_active, display_order FROM dbo.Categories WHERE is_active = 1 ORDER BY display_order')
     
     res.json({ 
       success: true, 
@@ -125,8 +125,8 @@ export async function addReview(req, res) {
       .input('user_id', sql.Int, user_id)
       .input('product_id', sql.Int, product_id)
       .query(`
-        SELECT 1 FROM OrderItems oi
-        JOIN Orders o ON o.order_id = oi.order_id
+        SELECT 1 FROM dbo.OrderItems oi
+        JOIN dbo.Orders o ON o.order_id = oi.order_id
         WHERE o.user_id = @user_id AND oi.product_id = @product_id AND o.order_status = 'delivered'
       `)
 
@@ -138,7 +138,7 @@ export async function addReview(req, res) {
     const existing = await pool.request()
       .input('user_id', sql.Int, user_id)
       .input('product_id', sql.Int, product_id)
-      .query('SELECT 1 FROM Reviews WHERE user_id = @user_id AND product_id = @product_id')
+      .query('SELECT 1 FROM dbo.Reviews WHERE user_id = @user_id AND product_id = @product_id')
 
     if (existing.recordset.length) {
       return res.status(409).json({ success: false, message: 'You have already reviewed this product' })
@@ -151,17 +151,17 @@ export async function addReview(req, res) {
       .input('rating', sql.TinyInt, rating)
       .input('comment', sql.NVarChar, comment || '')
       .query(`
-        INSERT INTO Reviews (product_id, user_id, rating, comment, created_at, is_visible)
+        INSERT INTO dbo.Reviews (product_id, user_id, rating, comment, created_at, is_visible)
         VALUES (@product_id, @user_id, @rating, @comment, GETDATE(), 1)
       `)
 
-    // Update product rating
+    // UPDATE dbo.product rating
     await pool.request()
       .input('product_id', sql.Int, product_id)
       .query(`
-        UPDATE Products SET
-          rating = (SELECT AVG(CAST(rating AS FLOAT)) FROM Reviews WHERE product_id = @product_id),
-          total_reviews = (SELECT COUNT(*) FROM Reviews WHERE product_id = @product_id)
+        UPDATE dbo.Products SET
+          rating = (SELECT AVG(CAST(rating AS FLOAT)) FROM dbo.Reviews WHERE product_id = @product_id),
+          total_reviews = (SELECT COUNT(*) FROM dbo.Reviews WHERE product_id = @product_id)
         WHERE product_id = @product_id
       `)
 

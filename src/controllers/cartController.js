@@ -8,8 +8,8 @@ export async function getCart(req, res) {
       .query(`
         SELECT c.cart_id, c.product_id, c.quantity,
                p.name, p.price, p.discount_price, p.images
-        FROM Cart c
-        JOIN Products p ON p.product_id = c.product_id
+        FROM dbo.Cart c
+        JOIN dbo.Products p ON p.product_id = c.product_id
         WHERE c.user_id = @user_id
       `)
 
@@ -35,19 +35,19 @@ export async function addToCart(req, res) {
     const existing = await pool.request()
       .input('user_id', sql.Int, user_id)
       .input('product_id', sql.Int, product_id)
-      .query('SELECT * FROM Cart WHERE user_id = @user_id AND product_id = @product_id')
+      .query('SELECT * FROM dbo.Cart WHERE user_id = @user_id AND product_id = @product_id')
 
     if (existing.recordset.length) {
       await pool.request()
         .input('cart_id', sql.Int, existing.recordset[0].cart_id)
         .input('quantity', sql.Int, existing.recordset[0].quantity + quantity)
-        .query('UPDATE Cart SET quantity = @quantity WHERE cart_id = @cart_id')
+        .query('UPDATE dbo.Cart SET quantity = @quantity WHERE cart_id = @cart_id')
     } else {
       await pool.request()
         .input('user_id', sql.Int, user_id)
         .input('product_id', sql.Int, product_id)
         .input('quantity', sql.Int, quantity)
-        .query('INSERT INTO Cart (user_id, product_id, quantity) VALUES (@user_id, @product_id, @quantity)')
+        .query('INSERT INTO dbo.Cart (user_id, product_id, quantity) VALUES (@user_id, @product_id, @quantity)')
     }
 
     res.json({ success: true, message: 'Added to cart' })
@@ -66,18 +66,18 @@ export async function updateCartQuantity(req, res) {
       await pool.request()
         .input('cart_id', sql.Int, cart_id)
         .input('user_id', sql.Int, user_id)
-        .query('DELETE FROM Cart WHERE cart_id = @cart_id AND user_id = @user_id')
+        .query('DELETE FROM dbo.Cart WHERE cart_id = @cart_id AND user_id = @user_id')
     } else {
       await pool.request()
         .input('cart_id', sql.Int, cart_id)
         .input('quantity', sql.Int, quantity)
         .input('user_id', sql.Int, user_id)
-        .query('UPDATE Cart SET quantity = @quantity WHERE cart_id = @cart_id AND user_id = @user_id')
+        .query('UPDATE dbo.Cart SET quantity = @quantity WHERE cart_id = @cart_id AND user_id = @user_id')
     }
 
     res.json({ success: true, message: 'Cart updated' })
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Failed to update cart' })
+    res.status(500).json({ success: false, message: 'Failed to UPDATE dbo.cart' })
   }
 }
 
@@ -90,11 +90,11 @@ export async function removeFromCart(req, res) {
     await pool.request()
       .input('cart_id', sql.Int, cart_id)
       .input('user_id', sql.Int, user_id)
-      .query('DELETE FROM Cart WHERE cart_id = @cart_id AND user_id = @user_id')
+      .query('DELETE FROM dbo.Cart WHERE cart_id = @cart_id AND user_id = @user_id')
 
-    res.json({ success: true, message: 'Removed from cart' })
+    res.json({ success: true, message: 'Removed FROM dbo.cart' })
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Failed to remove from cart' })
+    res.status(500).json({ success: false, message: 'Failed to remove FROM dbo.cart' })
   }
 }
 
@@ -103,7 +103,7 @@ export async function clearCart(req, res) {
     const pool = await getPool()
     await pool.request()
       .input('user_id', sql.Int, req.user.user_id)
-      .query('DELETE FROM Cart WHERE user_id = @user_id')
+      .query('DELETE FROM dbo.Cart WHERE user_id = @user_id')
     res.json({ success: true, message: 'Cart cleared' })
   } catch (err) {
     res.status(500).json({ success: false, message: 'Failed to clear cart' })

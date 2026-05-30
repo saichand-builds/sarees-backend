@@ -15,8 +15,8 @@ export async function createOrder(req, res) {
       .input('user_id', sql.Int, user_id)
       .query(`
         SELECT c.product_id, c.quantity, p.name, p.price, p.discount_price, p.images
-        FROM Cart c
-        JOIN Products p ON p.product_id = c.product_id
+        FROM dbo.Cart c
+        JOIN dbo.Products p ON p.product_id = c.product_id
         WHERE c.user_id = @user_id
       `)
 
@@ -41,9 +41,9 @@ export async function createOrder(req, res) {
       const couponRes = await pool.request()
         .input('code', sql.NVarChar, coupon_code)
         .query(`
-          SELECT * FROM Coupons 
+          SELECT * FROM dbo.Coupons 
           WHERE code = @code AND is_active = 1 
-          AND GETDATE() BETWEEN valid_from AND valid_to
+          AND GETDATE() BETWEEN valid_FROM dbo.AND valid_to
         `)
       
       if (couponRes.recordset.length && subtotal >= couponRes.recordset[0].min_order_amount) {
@@ -76,7 +76,7 @@ export async function createOrder(req, res) {
       .input('shipping_state', sql.NVarChar, shipping_state)
       .input('shipping_pincode', sql.NVarChar, shipping_pincode)
       .query(`
-        INSERT INTO Orders 
+        INSERT INTO dbo.Orders 
           (order_number, user_id, subtotal, shipping_charge, discount, total_amount, 
            payment_method, shipping_address, shipping_city, shipping_state, shipping_pincode, created_at)
         OUTPUT INSERTED.order_id
@@ -98,7 +98,7 @@ export async function createOrder(req, res) {
         .input('unit_price', sql.Decimal, item.unit_price)
         .input('total_price', sql.Decimal, item.total_price)
         .query(`
-          INSERT INTO OrderItems 
+          INSERT INTO dbo.OrderItems 
             (order_id, product_id, product_name, product_image, quantity, unit_price, total_price)
           VALUES 
             (@order_id, @product_id, @product_name, @product_image, @quantity, @unit_price, @total_price)
@@ -107,12 +107,12 @@ export async function createOrder(req, res) {
       await pool.request()
         .input('product_id', sql.Int, item.product_id)
         .input('quantity', sql.Int, item.quantity)
-        .query('UPDATE Products SET stock_quantity = stock_quantity - @quantity WHERE product_id = @product_id')
+        .query('UPDATE dbo.Products SET stock_quantity = stock_quantity - @quantity WHERE product_id = @product_id')
     }
 
     await pool.request()
       .input('user_id', sql.Int, user_id)
-      .query('DELETE FROM Cart WHERE user_id = @user_id')
+      .query('DELETE FROM dbo.Cart WHERE user_id = @user_id')
 
     res.json({ 
       success: true, 
@@ -133,7 +133,7 @@ export async function getOrders(req, res) {
     const result = await pool.request()
       .input('user_id', sql.Int, req.user.user_id)
       .query(`
-        SELECT * FROM Orders 
+        SELECT * FROM dbo.Orders 
         WHERE user_id = @user_id 
         ORDER BY created_at DESC
       `)
@@ -141,7 +141,7 @@ export async function getOrders(req, res) {
     for (const order of result.recordset) {
       const itemsRes = await pool.request()
         .input('order_id', sql.Int, order.order_id)
-        .query('SELECT * FROM OrderItems WHERE order_id = @order_id')
+        .query('SELECT * FROM dbo.OrderItems WHERE order_id = @order_id')
       order.items = itemsRes.recordset
     }
 
@@ -160,7 +160,7 @@ export async function getOrder(req, res) {
       .input('order_id', sql.Int, id)
       .input('user_id', sql.Int, req.user.user_id)
       .query(`
-        SELECT * FROM Orders 
+        SELECT * FROM dbo.Orders 
         WHERE order_id = @order_id AND user_id = @user_id
       `)
 
@@ -170,7 +170,7 @@ export async function getOrder(req, res) {
 
     const itemsRes = await pool.request()
       .input('order_id', sql.Int, id)
-      .query('SELECT * FROM OrderItems WHERE order_id = @order_id')
+      .query('SELECT * FROM dbo.OrderItems WHERE order_id = @order_id')
 
     const order = orderRes.recordset[0]
     order.items = itemsRes.recordset

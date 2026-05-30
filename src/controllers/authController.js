@@ -81,6 +81,6 @@ export async function updateProfile(req, res) {
     })
     res.json({ success: true, user: safeUser(user), message: 'Profile updated' })
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Update failed' })
+    res.status(500).json({ success: false, message: 'UPDATE dbo.failed' })
   }
 }
