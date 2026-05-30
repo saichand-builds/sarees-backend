@@ -13,7 +13,7 @@ export const User = {
       .input('password_hash', sql.NVarChar, password_hash)
       .input('role', sql.NVarChar, role || 'customer')
       .query(`
-        INSERT INTO Users (first_name, last_name, email, phone, password_hash, role, created_at)
+        INSERT INTO [SareesDB].[dbo].[Users] (first_name, last_name, email, phone, password_hash, role, created_at)
         OUTPUT INSERTED.*
         VALUES (@first_name, @last_name, @email, @phone, @password_hash, @role, GETDATE())
       `)
@@ -25,7 +25,7 @@ export const User = {
     const pool = await getPool()
     const result = await pool.request()
       .input('email', sql.NVarChar, email)
-      .query('SELECT * FROM Users WHERE email = @email')
+      .query('SELECT * FROM [SareesDB].[dbo].[Users] WHERE email = @email')
     
     return result.recordset[0]
   },
@@ -34,14 +34,14 @@ export const User = {
     const pool = await getPool()
     const result = await pool.request()
       .input('user_id', sql.Int, user_id)
-      .query('SELECT * FROM Users WHERE user_id = @user_id')
+      .query('SELECT * FROM [SareesDB].[dbo].[Users] WHERE user_id = @user_id')
     
     return result.recordset[0]
   },
 
   async update(user_id, updates) {
     const pool = await getPool()
-    let query = 'UPDATE Users SET updated_at = GETDATE()'
+    let query = 'UPDATE [SareesDB].[dbo].[Users] SET updated_at = GETDATE()'
     const request = pool.request().input('user_id', sql.Int, user_id)
     
     const fields = ['first_name', 'last_name', 'phone', 'address', 'city', 'state', 'pincode']
@@ -62,12 +62,12 @@ export const User = {
     const pool = await getPool()
     await pool.request()
       .input('user_id', sql.Int, user_id)
-      .query('UPDATE Users SET last_login = GETDATE() WHERE user_id = @user_id')
+      .query('UPDATE [SareesDB].[dbo].[Users] SET last_login = GETDATE() WHERE user_id = @user_id')
   },
 
   async getAll(role = null) {
     const pool = await getPool()
-    let query = 'SELECT user_id, first_name, last_name, email, phone, role, is_active, created_at, last_login FROM Users'
+    let query = 'SELECT user_id, first_name, last_name, email, phone, role, is_active, created_at, last_login FROM [SareesDB].[dbo].[Users]'
     if (role) {
       query += ' WHERE role = @role'
       const result = await pool.request()
@@ -84,7 +84,7 @@ export const User = {
     await pool.request()
       .input('user_id', sql.Int, user_id)
       .input('is_active', sql.Bit, is_active)
-      .query('UPDATE Users SET is_active = @is_active WHERE user_id = @user_id')
+      .query('UPDATE [SareesDB].[dbo].[Users] SET is_active = @is_active WHERE user_id = @user_id')
   }
 }
 
